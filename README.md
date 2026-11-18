@@ -1,32 +1,18 @@
-# React + TypeScript + Vite
+# Site Report Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A React and TypeScript application for creating and reviewing site reports.
 
-Currently, two official plugins are available:
+## Features
+- Enter a site name, issue description and priority.
+- Validate required fields.
+- Display the latest submitted report.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Built with
+React, TypeScript and Vite.
 
-## React Compiler
+## Run locally
+Run `npm install`, then `npm run dev`.
+Open the local address displayed in the terminal.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Current behaviour
+Reports are stored in memory and clear when the page is refreshed.
