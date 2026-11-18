@@ -2,19 +2,52 @@ import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 
 const priorities = ['Low', 'Medium', 'High'] as const
+const storageKey = 'site-report-tracker.reports.v1'
 
 type Report = {
+  id: string
   siteName: string
   description: string
   priority: (typeof priorities)[number]
+}
+
+type ReportState = {
+  reports: Report[]
+  error: string
+}
+
+function isReport(value: unknown): value is Report {
+  if (typeof value !== 'object' || value === null) return false
+
+  const report = value as Partial<Report>
+  return (
+    typeof report.id === 'string' && report.id.length > 0 &&
+    typeof report.siteName === 'string' && report.siteName.trim().length > 0 &&
+    typeof report.description === 'string' && report.description.trim().length > 0 &&
+    priorities.some((priority) => priority === report.priority)
+  )
+}
+
+function loadReports(): ReportState {
+  try {
+    const saved = localStorage.getItem(storageKey)
+    const reports: unknown = saved === null ? [] : JSON.parse(saved)
+
+    if (!Array.isArray(reports) || !reports.every(isReport)) {
+      return { reports: [], error: 'Saved reports contain unreadable data. Check this site’s browser storage.' }
+    }
+
+    return { reports, error: '' }
+  } catch {
+    return { reports: [], error: 'Saved reports could not be loaded. Check this site’s browser storage.' }
+  }
 }
 
 const fieldStyle: CSSProperties = { display: 'grid', gap: '0.4rem' }
 const inputStyle: CSSProperties = { font: 'inherit', padding: '0.5rem' }
 
 function App() {
-  const [report, setReport] = useState<Report | null>(null)
-  const [error, setError] = useState('')
+  const [{ reports, error }, setReportState] = useState(loadReports)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -25,13 +58,36 @@ function App() {
     const priority = priorities.find((option) => option === fields.get('priority'))
 
     if (!siteName || !description || !priority) {
-      setError('Enter a site name and issue description, then choose a priority.')
+      setReportState((current) => ({
+        ...current,
+        error: 'Enter a site name and issue description, then choose a priority.',
+      }))
       return
     }
 
-    setReport({ siteName, description, priority })
-    setError('')
-    form.reset()
+    const saved = loadReports()
+    if (saved.error) {
+      setReportState((current) => ({ ...current, error: saved.error }))
+      return
+    }
+
+    try {
+      const report: Report = {
+        id: crypto.randomUUID(),
+        siteName,
+        description,
+        priority,
+      }
+      const updatedReports = [report, ...saved.reports]
+      localStorage.setItem(storageKey, JSON.stringify(updatedReports))
+      setReportState({ reports: updatedReports, error: '' })
+      form.reset()
+    } catch {
+      setReportState((current) => ({
+        ...current,
+        error: 'This report could not be saved. Check your browser’s storage settings and try again.',
+      }))
+    }
   }
 
   return (
@@ -85,26 +141,29 @@ function App() {
         </button>
       </form>
 
-      <div role="status">
-        {report && (
-          <section
-            aria-labelledby="latest-report"
+      <section aria-labelledby="saved-reports" style={{ marginTop: '1.5rem' }}>
+        <h2 id="saved-reports">Saved reports</h2>
+        {reports.length === 0 && <p>Submit a report to start your history.</p>}
+        {reports.map((report) => (
+          <article
+            key={report.id}
+            aria-label={`Report for ${report.siteName}`}
             style={{
-              marginTop: '1.5rem',
+              marginTop: '1rem',
               padding: '1rem',
               border: '1px solid var(--border, #aaa)',
               borderRadius: '0.5rem',
               overflowWrap: 'anywhere',
             }}
           >
-            <h2 id="latest-report">Latest report</h2>
-            <p><strong>{report.siteName}</strong> · {report.priority}</p>
+            <h3 style={{ margin: '0 0 0.5rem' }}>{report.siteName}</h3>
+            <p>Priority: {report.priority}</p>
             <p style={{ marginTop: '0.4rem', whiteSpace: 'pre-wrap' }}>
               {report.description}
             </p>
-          </section>
-        )}
-      </div>
+          </article>
+        ))}
+      </section>
     </main>
   )
 }
