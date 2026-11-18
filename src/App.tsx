@@ -20,6 +20,7 @@ function isReport(value: unknown): value is Report {
   if (typeof value !== 'object' || value === null) return false
 
   const report = value as Partial<Report>
+
   return (
     typeof report.id === 'string' && report.id.length > 0 &&
     typeof report.siteName === 'string' && report.siteName.trim().length > 0 &&
@@ -34,28 +35,45 @@ function loadReports(): ReportState {
     const reports: unknown = saved === null ? [] : JSON.parse(saved)
 
     if (!Array.isArray(reports) || !reports.every(isReport)) {
-      return { reports: [], error: 'Saved reports contain unreadable data. Check this site’s browser storage.' }
+      return {
+        reports: [],
+        error: 'Saved reports contain unreadable data. Check this site’s browser storage.',
+      }
     }
 
     return { reports, error: '' }
   } catch {
-    return { reports: [], error: 'Saved reports could not be loaded. Check this site’s browser storage.' }
+    return {
+      reports: [],
+      error: 'Saved reports could not be loaded. Check this site’s browser storage.',
+    }
   }
 }
 
-const fieldStyle: CSSProperties = { display: 'grid', gap: '0.4rem' }
-const inputStyle: CSSProperties = { font: 'inherit', padding: '0.5rem' }
+const fieldStyle: CSSProperties = {
+  display: 'grid',
+  gap: '0.4rem',
+}
+
+const inputStyle: CSSProperties = {
+  font: 'inherit',
+  padding: '0.5rem',
+}
 
 function App() {
   const [{ reports, error }, setReportState] = useState(loadReports)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
     const form = event.currentTarget
     const fields = new FormData(form)
+
     const siteName = String(fields.get('siteName') ?? '').trim()
     const description = String(fields.get('description') ?? '').trim()
-    const priority = priorities.find((option) => option === fields.get('priority'))
+    const priority = priorities.find(
+      (option) => option === fields.get('priority')
+    )
 
     if (!siteName || !description || !priority) {
       setReportState((current) => ({
@@ -66,8 +84,12 @@ function App() {
     }
 
     const saved = loadReports()
+
     if (saved.error) {
-      setReportState((current) => ({ ...current, error: saved.error }))
+      setReportState((current) => ({
+        ...current,
+        error: saved.error,
+      }))
       return
     }
 
@@ -78,7 +100,9 @@ function App() {
         description,
         priority,
       }
+
       const updatedReports = [report, ...saved.reports]
+
       localStorage.setItem(storageKey, JSON.stringify(updatedReports))
       setReportState({ reports: updatedReports, error: '' })
       form.reset()
@@ -86,6 +110,38 @@ function App() {
       setReportState((current) => ({
         ...current,
         error: 'This report could not be saved. Check your browser’s storage settings and try again.',
+      }))
+    }
+  }
+
+  function deleteReport(reportId: string) {
+    const confirmed = window.confirm(
+      'Delete this report from your saved history?'
+    )
+
+    if (!confirmed) return
+
+    const saved = loadReports()
+
+    if (saved.error) {
+      setReportState((current) => ({
+        ...current,
+        error: saved.error,
+      }))
+      return
+    }
+
+    try {
+      const updatedReports = saved.reports.filter(
+        (report) => report.id !== reportId
+      )
+
+      localStorage.setItem(storageKey, JSON.stringify(updatedReports))
+      setReportState({ reports: updatedReports, error: '' })
+    } catch {
+      setReportState((current) => ({
+        ...current,
+        error: 'The report could not be deleted. Check your browser’s storage settings and try again.',
       }))
     }
   }
@@ -101,7 +157,11 @@ function App() {
       }}
     >
       <h1>Site Report Tracker</h1>
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1rem' }}>
+
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: 'grid', gap: '1rem' }}
+      >
         <label style={fieldStyle}>
           Site name
           <input name="siteName" style={inputStyle} required />
@@ -109,15 +169,30 @@ function App() {
 
         <label style={fieldStyle}>
           Issue description
-          <textarea name="description" rows={4} style={inputStyle} required />
+          <textarea
+            name="description"
+            rows={4}
+            style={inputStyle}
+            required
+          />
         </label>
 
         <label style={fieldStyle}>
           Priority
-          <select name="priority" defaultValue="" style={inputStyle} required>
-            <option value="" disabled>Choose a priority</option>
+          <select
+            name="priority"
+            defaultValue=""
+            style={inputStyle}
+            required
+          >
+            <option value="" disabled>
+              Choose a priority
+            </option>
+
             {priorities.map((priority) => (
-              <option key={priority} value={priority}>{priority}</option>
+              <option key={priority} value={priority}>
+                {priority}
+              </option>
             ))}
           </select>
         </label>
@@ -141,9 +216,16 @@ function App() {
         </button>
       </form>
 
-      <section aria-labelledby="saved-reports" style={{ marginTop: '1.5rem' }}>
+      <section
+        aria-labelledby="saved-reports"
+        style={{ marginTop: '1.5rem' }}
+      >
         <h2 id="saved-reports">Saved reports</h2>
-        {reports.length === 0 && <p>Submit a report to start your history.</p>}
+
+        {reports.length === 0 && (
+          <p>Submit a report to start your history.</p>
+        )}
+
         {reports.map((report) => (
           <article
             key={report.id}
@@ -156,11 +238,38 @@ function App() {
               overflowWrap: 'anywhere',
             }}
           >
-            <h3 style={{ margin: '0 0 0.5rem' }}>{report.siteName}</h3>
+            <h3 style={{ margin: '0 0 0.5rem' }}>
+              {report.siteName}
+            </h3>
+
             <p>Priority: {report.priority}</p>
-            <p style={{ marginTop: '0.4rem', whiteSpace: 'pre-wrap' }}>
+
+            <p
+              style={{
+                marginTop: '0.4rem',
+                whiteSpace: 'pre-wrap',
+              }}
+            >
               {report.description}
             </p>
+
+            <button
+              type="button"
+              onClick={() => deleteReport(report.id)}
+              aria-label={`Delete report for ${report.siteName}`}
+              style={{
+                ...inputStyle,
+                marginTop: '1rem',
+                paddingInline: '1rem',
+                background: '#b42318',
+                color: '#fff',
+                border: 0,
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+              }}
+            >
+              Delete report
+            </button>
           </article>
         ))}
       </section>

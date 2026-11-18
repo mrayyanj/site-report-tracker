@@ -7,6 +7,7 @@ A React and TypeScript application for creating and reviewing site reports.
 - Validate required fields.
 - Display a history of reports, with the newest first.
 - Save reports in the browser so they remain after a page refresh.
+- Delete individual reports after confirming the removal.
 
 ## Built with
 React, TypeScript and Vite.
