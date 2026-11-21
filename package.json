@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "dev:api": "node --watch server/index.js"
+    "dev:api": "node --watch server/index.js",
+    "test": "node --test tests/api.test.js"
   },
   "dependencies": {
     "react": "^19.3.1",
