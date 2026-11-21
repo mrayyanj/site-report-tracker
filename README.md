@@ -2,6 +2,10 @@
 
 A full-stack application for recording site issues, assigning priorities and reviewing report history.
 
+## Screenshot
+
+![Site Report Tracker showing the report form and saved reports](docs/screenshot.png)
+
 ## Features
 
 - Create reports with a site name, issue description and priority.
