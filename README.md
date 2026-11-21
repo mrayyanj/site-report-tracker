@@ -8,7 +8,8 @@ A full-stack application for recording site issues, assigning priorities and rev
 - Validate required fields in the browser and API.
 - List reports with the newest first.
 - Save reports to a SQLite database on the server.
-- Delete reports after confirmation.
+- Delete reports through an in-page confirmation dialog.
+- Use a responsive layout with priority badges and report overview counts.
 - Show loading, success and error messages.
 - Import reports from the earlier browser-storage version while retaining a backup.
 - Reuse report IDs when retrying requests to avoid duplicate records.

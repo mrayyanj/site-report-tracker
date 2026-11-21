@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, FormEvent } from 'react'
+import type { FormEvent } from 'react'
+import './App.css'
 
 const priorities = ['Low', 'Medium', 'High'] as const
 const storageKey = 'site-report-tracker.reports.v1'
@@ -108,22 +109,29 @@ async function saveReport(report: Report): Promise<Report> {
   return data.report
 }
 
-const fieldStyle: CSSProperties = {
-  display: 'grid',
-  gap: '0.4rem',
+const iconPaths = {
+  report: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6M8 13h8M8 17h5',
+  plus: 'M12 5v14M5 12h14',
+  trash: 'M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6',
+  close: 'm6 6 12 12M18 6 6 18',
 }
 
-const inputStyle: CSSProperties = {
-  font: 'inherit',
-  padding: '0.5rem',
-}
-
-const buttonStyle: CSSProperties = {
-  ...inputStyle,
-  paddingInline: '1rem',
-  border: '1px solid #aaa',
-  borderRadius: '0.375rem',
-  cursor: 'pointer',
+function Icon({ name }: { name: keyof typeof iconPaths }) {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={iconPaths[name]} />
+    </svg>
+  )
 }
 
 function App() {
@@ -135,7 +143,13 @@ function App() {
   const [reload, setReload] = useState(0)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<Report | null>(null)
+  const [deleteError, setDeleteError] = useState('')
 
+  const deleteDialogRef = useRef<HTMLDialogElement>(null)
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null)
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const reportsHeadingRef = useRef<HTMLHeadingElement>(null)
   const busyRef = useRef(false)
   const pendingReport = useRef<Report | null>(null)
 
@@ -164,6 +178,33 @@ function App() {
     return () => controller.abort()
   }, [reload])
 
+  useEffect(() => {
+    const dialog = deleteDialogRef.current
+    if (!dialog) return
+
+    if (deleteTarget) {
+      if (!dialog.open) dialog.showModal()
+      cancelDeleteRef.current?.focus()
+
+      const previousOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+
+      return () => {
+        document.body.style.overflow = previousOverflow
+      }
+    }
+
+    if (dialog.open) {
+      dialog.close()
+
+      if (deleteTriggerRef.current?.isConnected) {
+        deleteTriggerRef.current.focus()
+      } else {
+        reportsHeadingRef.current?.focus()
+      }
+    }
+  }, [deleteTarget])
+
   function reloadReports() {
     if (busyRef.current || loading) return
 
@@ -174,7 +215,10 @@ function App() {
     setReload((value) => value + 1)
   }
 
-  async function runAction(action: () => Promise<void>) {
+  async function runAction(
+    action: () => Promise<void>,
+    onFailure: (message: string) => void = setError,
+  ) {
     if (busyRef.current || loading || !ready) return
 
     busyRef.current = true
@@ -185,7 +229,7 @@ function App() {
     try {
       await action()
     } catch (failure) {
-      setError(
+      onFailure(
         failure instanceof Error
           ? failure.message
           : 'The action failed. Please retry.',
@@ -236,16 +280,27 @@ function App() {
 
       pendingReport.current = null
       form.reset()
-      setMessage('Report saved to the database.')
+      setMessage('Report saved successfully.')
     })
   }
 
-  function deleteReport(report: Report) {
+  function requestDelete(report: Report, trigger: HTMLButtonElement) {
     if (busyRef.current || loading || !ready) return
 
-    if (!window.confirm(`Delete the report for "${report.siteName}"?`)) {
-      return
-    }
+    deleteTriggerRef.current = trigger
+    setDeleteError('')
+    setDeleteTarget(report)
+  }
+
+  function cancelDelete() {
+    if (!busyRef.current) setDeleteTarget(null)
+  }
+
+  function confirmDelete() {
+    const report = deleteTarget
+    if (!report || busyRef.current) return
+
+    setDeleteError('')
 
     void runAction(async () => {
       const data = await requestApi(
@@ -261,8 +316,9 @@ function App() {
         (item) => item.id !== report.id,
       ))
 
-      setMessage('Report deleted from the database.')
-    })
+      setDeleteTarget(null)
+      setMessage('Report deleted.')
+    }, setDeleteError)
   }
 
   function importBrowserReports() {
@@ -304,149 +360,306 @@ function App() {
 
   const disabled = loading || busy || !ready
 
+  const highPriorityCount = reports.filter(
+    (report) => report.priority === 'High',
+  ).length
+
+  const siteCount = new Set(
+    reports.map((report) => report.siteName.trim().toLowerCase()),
+  ).size
+
   return (
-    <main
-      style={{
-        width: 'min(100%, 40rem)',
-        boxSizing: 'border-box',
-        margin: '0 auto',
-        padding: '1.5rem',
-        textAlign: 'left',
-      }}
-    >
-      <h1>Site Report Tracker</h1>
-      <p>Create site reports and save them to a local database.</p>
+    <>
+      <a className="skip-link" href="#main-content">Skip to reports</a>
 
-      {error && <p role="alert">{error}</p>}
-      <p role="status" style={{ minHeight: '1.5rem' }}>{message}</p>
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="brand">
+            <span className="brand-mark"><Icon name="report" /></span>
+            <span>Site Report Tracker</span>
+          </div>
+          <span className="workspace-label">Report workspace</span>
+        </div>
+      </header>
 
-      {backup.error && <p role="alert">{backup.error}</p>}
+      <main id="main-content" className="app-shell" tabIndex={-1}>
+        <div className="page-heading">
+          <div>
+            <p className="eyebrow">SITE OPERATIONS</p>
+            <h1>Site reports</h1>
+            <p className="page-description">
+              Capture issues, set priorities and keep your site records organised.
+            </p>
+          </div>
+          <a className="button button-primary" href="#new-report">
+            <Icon name="plus" />New report
+          </a>
+        </div>
 
-      {backup.reports.length > 0 && (
-        <section
-          aria-label="Earlier browser reports"
-          style={{ marginBottom: '1.5rem' }}
-        >
-          <p>
-            {backup.reports.length} earlier browser report(s) are available to copy.
-          </p>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={importBrowserReports}
-            style={buttonStyle}
-          >
-            Import browser reports
-          </button>
+        <section className="stats" aria-label="Report overview">
+          <div className="stat">
+            <span>Saved reports</span>
+            <strong>{ready ? reports.length : '—'}</strong>
+          </div>
+          <div className="stat">
+            <span>High priority</span>
+            <strong className="stat-alert">
+              {ready ? highPriorityCount : '—'}
+            </strong>
+          </div>
+          <div className="stat">
+            <span>Sites reported</span>
+            <strong>{ready ? siteCount : '—'}</strong>
+          </div>
         </section>
-      )}
 
-      <form onSubmit={handleSubmit}>
-        <fieldset
-          disabled={disabled}
-          style={{
-            display: 'grid',
-            gap: '1rem',
-            border: 0,
-            padding: 0,
-            margin: 0,
-            minWidth: 0,
-          }}
-        >
-          <label style={fieldStyle}>
-            Site name
-            <input name="siteName" style={inputStyle} required />
-          </label>
+        {error && <p className="notice notice-error" role="alert">{error}</p>}
 
-          <label style={fieldStyle}>
-            Issue description
-            <textarea
-              name="description"
-              rows={4}
-              style={inputStyle}
-              required
-            />
-          </label>
+        <p className={message ? 'notice notice-success' : 'sr-only'} role="status">
+          {message}
+        </p>
 
-          <label style={fieldStyle}>
-            Priority
-            <select name="priority" defaultValue="" style={inputStyle} required>
-              <option value="" disabled>Choose a priority</option>
-              {priorities.map((priority) => (
-                <option key={priority} value={priority}>{priority}</option>
-              ))}
-            </select>
-          </label>
-
-          <button
-            type="submit"
-            style={{
-              ...buttonStyle,
-              justifySelf: 'start',
-              background: '#174f46',
-              color: '#fff',
-            }}
-          >
-            {busy ? 'Working...' : 'Submit report'}
-          </button>
-        </fieldset>
-      </form>
-
-      <section
-        aria-labelledby="saved-reports"
-        aria-busy={loading || busy}
-        style={{ marginTop: '2rem' }}
-      >
-        <h2 id="saved-reports">Saved reports</h2>
-
-        <button
-          type="button"
-          disabled={loading || busy}
-          onClick={reloadReports}
-          style={buttonStyle}
-        >
-          Reload reports
-        </button>
-
-        {loading && <p>Loading reports...</p>}
-
-        {ready && !loading && reports.length === 0 && (
-          <p>Submit a report to start your history.</p>
+        {backup.error && (
+          <p className="notice notice-error" role="alert">{backup.error}</p>
         )}
 
-        {reports.map((report) => (
-          <article
-            key={report.id}
-            aria-label={`Report for ${report.siteName}`}
-            style={{
-              marginTop: '1rem',
-              padding: '1rem',
-              border: '1px solid #aaa',
-              borderRadius: '0.5rem',
-              overflowWrap: 'anywhere',
-            }}
-          >
-            <h3 style={{ marginTop: 0 }}>{report.siteName}</h3>
-            <p>Priority: {report.priority}</p>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{report.description}</p>
-
+        {backup.reports.length > 0 && (
+          <section className="import-notice" aria-label="Earlier browser reports">
+            <div>
+              <strong>Bring your earlier reports with you</strong>
+              <p>
+                {backup.reports.length} browser report(s) are ready to copy.
+                Your original browser data will be kept.
+              </p>
+            </div>
             <button
+              className="button button-secondary"
               type="button"
               disabled={disabled}
-              onClick={() => deleteReport(report)}
-              aria-label={`Delete report for ${report.siteName}`}
-              style={{
-                ...buttonStyle,
-                background: '#b42318',
-                color: '#fff',
-              }}
+              onClick={importBrowserReports}
             >
-              Delete report
+              Import browser reports
             </button>
-          </article>
-        ))}
-      </section>
-    </main>
+          </section>
+        )}
+
+        <div className="workspace-grid">
+          <section className="form-panel" aria-labelledby="new-report">
+            <div className="panel-heading">
+              <p className="eyebrow">NEW REPORT</p>
+              <h2 id="new-report" tabIndex={-1}>Report an issue</h2>
+              <p>Add the details so the right issue gets attention.</p>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <fieldset disabled={disabled}>
+                <label className="field">
+                  Site name
+                  <input
+                    name="siteName"
+                    placeholder="e.g. Docklands, north entrance"
+                    autoComplete="off"
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  Issue description
+                  <textarea
+                    name="description"
+                    rows={5}
+                    placeholder="Describe the issue and where it is located..."
+                    aria-describedby="description-help"
+                    required
+                  />
+                </label>
+
+                <p className="field-help" id="description-help">
+                  Include the location and what needs attention.
+                </p>
+
+                <label className="field">
+                  Priority
+                  <select name="priority" defaultValue="" required>
+                    <option value="" disabled>Choose a priority</option>
+                    {priorities.map((priority) => (
+                      <option key={priority} value={priority}>{priority}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  className="button button-primary save-button"
+                  type="submit"
+                >
+                  <Icon name="plus" />
+                  {busy ? 'Working...' : 'Save report'}
+                </button>
+
+                <p className="form-note">All fields are required.</p>
+              </fieldset>
+            </form>
+          </section>
+
+          <section
+            className="history-panel"
+            aria-labelledby="saved-reports"
+            aria-busy={loading || busy}
+          >
+            <div className="history-heading">
+              <div>
+                <h2 id="saved-reports" ref={reportsHeadingRef} tabIndex={-1}>
+                  Report history
+                </h2>
+                <p>Your saved reports, newest first.</p>
+              </div>
+
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={loading || busy}
+                onClick={reloadReports}
+              >
+                Reload reports
+              </button>
+            </div>
+
+            {loading && (
+              <div className="empty-state" role="status">
+                <span className="empty-icon"><Icon name="report" /></span>
+                <h3>Loading your reports...</h3>
+                <p>Getting the latest saved history.</p>
+              </div>
+            )}
+
+            {!loading && !ready && reports.length === 0 && (
+              <div className="empty-state">
+                <span className="empty-icon"><Icon name="report" /></span>
+                <h3>Reports are unavailable</h3>
+                <p>Use Reload reports to try again.</p>
+              </div>
+            )}
+
+            {ready && !loading && reports.length === 0 && (
+              <div className="empty-state">
+                <span className="empty-icon"><Icon name="report" /></span>
+                <h3>No reports yet</h3>
+                <p>Create your first report using the form.</p>
+              </div>
+            )}
+
+            <div className="report-list">
+              {reports.map((report) => (
+                <article
+                  className="report-card"
+                  key={report.id}
+                  aria-label={`Report for ${report.siteName}`}
+                >
+                  <div className="report-card-heading">
+                    <h3>{report.siteName}</h3>
+                    <span className={`priority priority-${report.priority.toLowerCase()}`}>
+                      {report.priority} priority
+                    </span>
+                  </div>
+
+                  <p className="report-description">{report.description}</p>
+
+                  <div className="report-card-footer">
+                    <button
+                      className="button button-delete"
+                      type="button"
+                      disabled={disabled}
+                      onClick={(event) => requestDelete(report, event.currentTarget)}
+                      aria-label={`Delete report for ${report.siteName}`}
+                    >
+                      <Icon name="trash" />Delete report
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <dialog
+          ref={deleteDialogRef}
+          className="delete-dialog"
+          aria-labelledby="delete-title"
+          aria-describedby="delete-description delete-report-name"
+          onCancel={(event) => {
+            event.preventDefault()
+            cancelDelete()
+          }}
+          onClick={(event) => {
+            if (event.target !== event.currentTarget) return
+
+            const bounds = event.currentTarget.getBoundingClientRect()
+
+            if (
+              event.clientX < bounds.left ||
+              event.clientX > bounds.right ||
+              event.clientY < bounds.top ||
+              event.clientY > bounds.bottom
+            ) {
+              cancelDelete()
+            }
+          }}
+        >
+          <button
+            className="dialog-close"
+            type="button"
+            aria-label="Close delete confirmation"
+            disabled={busy}
+            onClick={cancelDelete}
+          >
+            <Icon name="close" />
+          </button>
+
+          <span className="dialog-icon"><Icon name="trash" /></span>
+          <h2 id="delete-title">Delete this report?</h2>
+
+          <p className="dialog-description" id="delete-description">
+            This will remove the report from your saved history.
+          </p>
+
+          <div className="dialog-report">
+            <strong id="delete-report-name">{deleteTarget?.siteName}</strong>
+            {deleteTarget && (
+              <span className={`priority priority-${deleteTarget.priority.toLowerCase()}`}>
+                {deleteTarget.priority} priority
+              </span>
+            )}
+          </div>
+
+          {deleteError && (
+            <p className="notice notice-error dialog-error" role="alert">
+              {deleteError}
+            </p>
+          )}
+
+          <div className="dialog-actions">
+            <button
+              ref={cancelDeleteRef}
+              className="button button-secondary"
+              type="button"
+              disabled={busy}
+              onClick={cancelDelete}
+            >
+              Cancel
+            </button>
+
+            <button
+              className="button button-danger"
+              type="button"
+              disabled={busy}
+              onClick={confirmDelete}
+            >
+              {busy ? 'Deleting...' : 'Delete report'}
+            </button>
+          </div>
+        </dialog>
+      </main>
+    </>
   )
 }
 
