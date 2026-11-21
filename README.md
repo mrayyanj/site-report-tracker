@@ -53,12 +53,22 @@ When earlier browser reports are found at the same site address, use Import brow
 
 ## Checks
 
-Run `npm run lint`, `npm run build` and `npm audit`.
+Run `npm test`, `npm run lint`, `npm run build` and `npm audit`.
 
-Manual checks cover creating reports, refreshing, restarting the API, cancelling and confirming deletion, and retaining form contents after a failed submission.
+## Automated API checks
+
+`npm test` runs 10 integration tests using Node's built-in test runner.
+
+Each test starts an API on a separate available port and uses a temporary SQLite database. Tests can run while the normal app is running. Temporary databases are removed afterwards.
+
+The tests cover report creation, validation, ordering, request retries, conflicting IDs, restart persistence and deletion.
+
+The GitHub Actions workflow runs tests, lint and the production build on Ubuntu and Windows for pushes and pull requests.
+
+Popup appearance and keyboard interactions remain manual browser checks.
 
 ## Current scope
 
 This is a local development project with create, list and delete operations.
 
-Authentication, editing, automated CI checks and public deployment are future work. Production hosting requires a Node service and persistent database storage.
+Authentication and report editing are future work.
